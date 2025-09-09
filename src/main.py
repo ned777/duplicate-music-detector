@@ -1,22 +1,38 @@
 from pathlib import Path
-from itertools import combinations
+import eyed3
+import warnings
+import logging
 
-folder_path = input ("Drag the specific music folder that you want to scan into this window.")
+# Suppress DeprecationWarnings from Python
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+# Silence eyeD3 log spam
+eyed3.log.setLevel(logging.ERROR)
 
-# Remove extra quotes if they exist
-folder_path = folder_path.strip('"')
+folder_path = input("Drag the specific music folder that you want to scan into this window: ").strip('"')
+folder = Path(folder_path)
 
-folder=Path(folder_path)
+title_map = {}  # title -> list of filenames
 
-music_list = [file for file in folder.iterdir() if file.suffix.lower() in {".mp3", ".wav", ".flac"}]
-print(music_list)
+for file in folder.iterdir():
+    if file.suffix.lower() == ".mp3":
+        audio = eyed3.load(str(file))
+        if audio and audio.tag:
+            title = audio.tag.title if audio.tag.title else file.stem
+        else:
+            title = file.stem
 
+        # Normalize titles (ignore case & spaces)
+        norm_title = title.strip().lower()
+        title_map.setdefault(norm_title, []).append(file.name)
 
-# define what "same" means: filename without extension, lowercase
-def key(p: Path) -> str:
-    return p.stem.lower().strip()
+# Print duplicates with filenames
+found_duplicates = False
+for title, files in title_map.items():
+    if len(files) > 1:
+        found_duplicates = True
+        print(f"\nDuplicate title: {title}")
+        for f in files:
+            print(f"  - {f}")
 
-# compare every file against every other file
-for a, b in combinations(music_list, 2):
-    if key(a) == key(b):
-        print("dup:", a.name, "<->", b.name) 
+if not found_duplicates:
+    print("No duplicate titles found.")
